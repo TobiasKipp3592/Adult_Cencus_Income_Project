@@ -2,7 +2,7 @@ import pandas as pd
 
 def fill_missing_values(df):
     """
-    Ersetzt fehlende Werte in bestimmten Spalten durch 'Unknown'.
+    Ersetzt fehlende Werte in bestimmten Spalten durch 'Unknown' und 'Amer-Indian-Eskimo' in der Spalte 'race' durch 'Indigenous'.
 
     Args:
         df (pd.DataFrame): Eingabe-DataFrame.
@@ -13,6 +13,7 @@ def fill_missing_values(df):
     df["workclass"] = df["workclass"].fillna("Unknown")
     df["occupation"] = df["occupation"].fillna("Unknown")
     df["native.country"] = df["native.country"].fillna("Unknown")
+    df["race"] = df["race"].replace("Amer-Indian-Eskimo", "Indigenous")
     
     return df
 
