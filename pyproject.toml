@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "aif360>=0.6.1",
     "fairlearn>=0.12.0",
+    "imblearn>=0.0",
     "jupyter>=1.1.1",
     "kagglehub>=0.3.9",
     "langchain>=0.3.19",
