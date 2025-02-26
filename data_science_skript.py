@@ -139,27 +139,31 @@ def evaluate_discrimination(target_test, target_pred, features_test):
 
     """
 
-    fairness_metrics = {}
+    fairness_metrics = {
+        "roc_auc": {},
+        "eod": {},
+        "dpr": {},
+        "dpd": {}
+    }
 
-    mask_male = features_test["sex"] == "Male"
-    mask_female = features_test["sex"] == "Female"
-
-    fairness_metrics["ROC-AUC-male"] = roc_auc_score(target_test[mask_male], target_pred[mask_male]) 
-    fairness_metrics["ROC-AUC-female"] = roc_auc_score(target_test[mask_female], target_pred[mask_female])
-
+    mask_male = features_test["sex"] == 1
+    mask_female = features_test["sex"] == 0
+    fairness_metrics["roc_auc"]["male"] = roc_auc_score(target_test[mask_male], target_pred[mask_male])
+    fairness_metrics["roc_auc"]["female"] = roc_auc_score(target_test[mask_female], target_pred[mask_female])
+    
     mask_white = features_test["race"] == "White"
     mask_non_white = features_test["race"] != "White"
-
-    fairness_metrics["ROC-AUC-white"] = roc_auc_score(target_test[mask_white], target_pred[mask_white])
-    fairness_metrics["ROC-AUC-non_white"] = roc_auc_score(target_test[mask_non_white], target_pred[mask_non_white])
-
-    fairness_metrics["EOD 'sex'"] = equalized_odds_difference(target_test, target_pred)
-    fairness_metrics["DPR 'sex'"] = demographic_parity_ratio(target_test, target_pred)
-    fairness_metrics["DPD 'sex'"] = demographic_parity_difference(target_test, target_pred)
-
-
-    fairness_metrics["EOD 'race'"] = equalized_odds_difference(target_test, target_pred)
-    fairness_metrics["DPR 'race'"] = demographic_parity_ratio(target_test, target_pred)
-    fairness_metrics["DPD 'race'"] = demographic_parity_difference(target_test, target_pred)
-
+    fairness_metrics["roc_auc"]["white"] = roc_auc_score(target_test[mask_white], target_pred[mask_white])
+    fairness_metrics["roc_auc"]["non_white"] = roc_auc_score(target_test[mask_non_white], target_pred[mask_non_white])
+    
+    fairness_metrics["eod"]["sex"] = equalized_odds_difference(target_test, target_pred, sensitive_features=features_test["sex"])
+    fairness_metrics["eod"]["race"] = equalized_odds_difference(target_test, target_pred, sensitive_features=features_test["race"])
+    
+    fairness_metrics["dpr"]["sex"] = demographic_parity_ratio(target_test, target_pred, sensitive_features=features_test["sex"])
+    fairness_metrics["dpr"]["race"] = demographic_parity_ratio(target_test, target_pred, sensitive_features=features_test["race"])
+    
+    fairness_metrics["dpd"]["sex"] = demographic_parity_difference(target_test, target_pred, sensitive_features=features_test["sex"])
+    fairness_metrics["dpd"]["race"] = demographic_parity_difference(target_test, target_pred, sensitive_features=features_test["race"])
+    
     return fairness_metrics
+    
