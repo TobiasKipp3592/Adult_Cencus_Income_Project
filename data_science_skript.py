@@ -4,6 +4,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pickle
 
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+
+
 def preprocess_data(df):
     """Bereinigt die Daten: wandelt Variablen 'income' und 'sex' um"""
     
@@ -14,7 +17,7 @@ def preprocess_data(df):
 
 
 
-def generate_plots(df, heatmap_file="heatmap.png", pairplot_file="pairplot.png"):
+def generate_plots(df, heatmap_file="data_science\heatmap.png", pairplot_file="data_science\pairplot.png"):
     """
     Generates a heatmap and a pairplot from a DataFrame and saves them as images.
     If the files already exist, they are loaded instead of being recreated and displayed.
@@ -53,3 +56,37 @@ def generate_plots(df, heatmap_file="heatmap.png", pairplot_file="pairplot.png")
         pairplot.savefig(pairplot_file, dpi=300)
         plt.show()
         print(f"Pairplot saved as '{pairplot_file}'")
+
+
+
+def train_model(model, features_train, target_train, features_test, target_test):
+    """
+    Trains a given machine learning model and evaluates its performance on the test set.
+
+    Args:
+        model (sklearn-compatible estimator): The machine learning model to be trained.
+    X_train (pandas.DataFrame or numpy.ndarray): Training features.
+    y_train (pandas.Series or numpy.ndarray): Target values for training.
+    X_test (pandas.DataFrame or numpy.ndarray): Test features.
+    y_test (pandas.Series or numpy.ndarray): True target values for evaluation.
+
+    Returns:
+    dict
+        A dictionary containing evaluation metrics:
+        - "Accuracy": Model accuracy score.
+        - "Precision": Weighted precision score.
+        - "Recall": Weighted recall score.
+        - "F1 Score": Weighted F1 score.
+        - "ROC-AUC": Area under the ROC curve (binary classification).
+    """
+    model.fit(features_train, target_train)
+    target_pred = model.predict(features_test)
+    
+    metrics = {
+        "Accuracy": accuracy_score(target_test, target_pred),
+        "Precision": precision_score(target_test, target_pred, average="weighted"),
+        "Recall": recall_score(target_test, target_pred, average="weighted"),
+        "F1 Score": f1_score(target_test, target_pred, average="weighted"),
+        "ROC-AUC": float(roc_auc_score(target_test, target_pred))
+    }
+    return metrics
