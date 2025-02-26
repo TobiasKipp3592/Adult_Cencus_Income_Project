@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pickle
 
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from fairlearn.metrics import equalized_odds_difference, demographic_parity_difference, demographic_parity_ratio
 
 
 def preprocess_data(df):
@@ -59,28 +60,43 @@ def generate_plots(df, heatmap_file="data_science\heatmap.png", pairplot_file="d
 
 
 
-def train_model(model, features_train, target_train, features_test, target_test):
+def train_and_predict(model, features_train, target_train, features_test, target_test):
     """
     Trains a given machine learning model and evaluates its performance on the test set.
 
     Args:
         model (sklearn-compatible estimator): The machine learning model to be trained.
-    X_train (pandas.DataFrame or numpy.ndarray): Training features.
-    y_train (pandas.Series or numpy.ndarray): Target values for training.
-    X_test (pandas.DataFrame or numpy.ndarray): Test features.
-    y_test (pandas.Series or numpy.ndarray): True target values for evaluation.
+        features_train (pandas.DataFrame or numpy.ndarray): Training features.
+        target_train (pandas.Series or numpy.ndarray): Target values for training.
+        features_test (pandas.DataFrame or numpy.ndarray): Test features.
+        target_test (pandas.Series or numpy.ndarray): True target values for evaluation.
 
     Returns:
-    dict
-        A dictionary containing evaluation metrics:
-        - "Accuracy": Model accuracy score.
-        - "Precision": Weighted precision score.
-        - "Recall": Weighted recall score.
-        - "F1 Score": Weighted F1 score.
-        - "ROC-AUC": Area under the ROC curve (binary classification).
+        numpy.ndarray: Predicted values for the test set.
     """
+
     model.fit(features_train, target_train)
     target_pred = model.predict(features_test)
+    return target_pred
+
+
+
+def evaluate_model(target_test, target_pred):
+    """
+    Evaluates the model's performance using standard classification metrics.
+
+    Args:
+        target_test (pandas.Series or numpy.ndarray): True target values for evaluation.
+        target_pred (numpy.ndarray): Predicted values from the model.
+
+    Returns_
+        dict: dictionary containing evaluation metrics:
+            - "Accuracy": Model accuracy score.
+            - "Precision": Weighted precision score.
+            - "Recall": Weighted recall score.
+            - "F1 Score": Weighted F1 score.
+            - "ROC-AUC": Area under the ROC curve (binary classification).
+    """
     
     metrics = {
         "Accuracy": accuracy_score(target_test, target_pred),
@@ -90,3 +106,60 @@ def train_model(model, features_train, target_train, features_test, target_test)
         "ROC-AUC": float(roc_auc_score(target_test, target_pred))
     }
     return metrics
+
+
+
+def evaluate_discrimination(target_test, target_pred, features_test):
+    """
+    Evaluates the discrimination metrics of the model, focusing on fairness across different demographic groups.
+
+    Args:
+        target_test (pandas.Series or numpy.ndarray): True target values for evaluation.
+        target_pred (numpy.ndarray): Predicted values from the model.
+        features_test (pandas.DataFrame or numpy.ndarray): Test features.
+
+    Returns:
+        dict: A dictionary containing fairness-related evaluation metrics:
+            - "ROC-AUC-male": ROC-AUC score for the male subgroup.
+            - "ROC-AUC-female": ROC-AUC score for the female subgroup.
+            - "ROC-AUC-white": ROC-AUC score for the white subgroup.
+            - "ROC-AUC-non_white": ROC-AUC score for the non-white subgroup.
+            - "EOD 'sex'": Equalized Odds Difference for the 'sex' attribute.
+            - "EOD 'race'": Equalized Odds Difference for the 'race' attribute.
+            - "DPR 'sex'": Demographic Parity Ratio for the 'sex' attribute.
+            - "DPR 'race'": Demographic Parity Ratio for the 'race' attribute.
+            - "DPD 'sex'": Demographic Parity Difference for the 'sex' attribute.
+            - "DPD 'race'": Demographic Parity Difference for the 'race' attribute.
+
+    Notes:
+        - **ROC-AUC subgroup analysis**: Measures the model's ability to discriminate between classes within specific demographic subgroups.
+        - **Equalized Odds Difference (EOD)**: Measures disparities in **true positive rates (TPR) and false positive rates (FPR)** across groups.
+        - **Demographic Parity Ratio (DPR)**: Ratio of positive predictions between groups.
+        - **Demographic Parity Difference (DPD)**: Difference in positive predictions between groups.
+
+    """
+
+    fairness_metrics = {}
+
+    mask_male = features_test["sex"] == "Male"
+    mask_female = features_test["sex"] == "Female"
+
+    fairness_metrics["ROC-AUC-male"] = roc_auc_score(target_test[mask_male], target_pred[mask_male]) 
+    fairness_metrics["ROC-AUC-female"] = roc_auc_score(target_test[mask_female], target_pred[mask_female])
+
+    mask_white = features_test["race"] == "White"
+    mask_non_white = features_test["race"] != "White"
+
+    fairness_metrics["ROC-AUC-white"] = roc_auc_score(target_test[mask_white], target_pred[mask_white])
+    fairness_metrics["ROC-AUC-non_white"] = roc_auc_score(target_test[mask_non_white], target_pred[mask_non_white])
+
+    fairness_metrics["EOD 'sex'"] = equalized_odds_difference(target_test, target_pred)
+    fairness_metrics["DPR 'sex'"] = demographic_parity_ratio(target_test, target_pred)
+    fairness_metrics["DPD 'sex'"] = demographic_parity_difference(target_test, target_pred)
+
+
+    fairness_metrics["EOD 'race'"] = equalized_odds_difference(target_test, target_pred)
+    fairness_metrics["DPR 'race'"] = demographic_parity_ratio(target_test, target_pred)
+    fairness_metrics["DPD 'race'"] = demographic_parity_difference(target_test, target_pred)
+
+    return fairness_metrics
