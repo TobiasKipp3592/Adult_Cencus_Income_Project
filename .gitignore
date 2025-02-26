@@ -10,3 +10,11 @@ wheels/
 .venv
 .data
 .env
+
+# Cache-Dateien
+*_cache.pkl
+*.pkl
+
+# Bilder
+*.png
+*.jpg
