@@ -46,10 +46,10 @@ def generate_plots(df, heatmap_file="heatmap.png", pairplot_file="pairplot.png")
         print(f"File '{pairplot_file}' already exists. Loading...")
         img = plt.imread(pairplot_file)
         plt.imshow(img)
-        plt.axis("off")
+
         plt.show()
     else:
-        pairplot = sns.pairplot(df_numeric)
-        pairplot.savefig(pairplot_file)
+        pairplot = sns.pairplot(df_numeric, height=3, aspect=1.2)
+        pairplot.savefig(pairplot_file, dpi=300)
         plt.show()
         print(f"Pairplot saved as '{pairplot_file}'")
