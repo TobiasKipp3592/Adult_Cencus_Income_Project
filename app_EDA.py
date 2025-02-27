@@ -2,9 +2,14 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 import streamlit as st
-from langchain_community.llms import OpenAI
+from langchain_openai import OpenAI
 from langchain_experimental.agents import create_pandas_dataframe_agent
-
+import io
+from langchain_core.prompts import PromptTemplate
+from langchain_experimental.agents.agent_toolkits import create_python_agent
+from langchain_experimental.tools.python.tool import PythonREPLTool 
+from langchain.agents.agent_types import AgentType
+from langchain_community.utilities import WikipediaAPIWrapper
 # openai api
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -49,8 +54,9 @@ if st.session_state.clicked[1]:
         # Function sidebar
         @st.cache_data
         def steps_eda():
-            steps_eda = llm("What are the steps of EDA")
-            return steps_eda
+            prompt = "Explain the standard steps of Exploratory Data Analysis (EDA) with examples."
+            response = llm(prompt)
+            return response
 
         # Pandas Agent
         pandas_agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True)
@@ -61,13 +67,38 @@ if st.session_state.clicked[1]:
             st.write("**Data Overview**")
             st.write("The first rows of your dataset look like this:")
             st.write(df.head())
+            st.write(df.tail())
+
+            st.write("This is the information about your dataset:")
+            buffer = io.StringIO()
+            df.info(buf=buffer)
+            info_str = buffer.getvalue()
+            st.text(info_str)
+
             st.write("**Data Cleaning**")
-            columns_df = pandas_agent.run("What are the meaning of the columns?")
-            st.write(columns_df)
-            missing_values = pandas_agent.run("How many missing values does this dataframe have? Start the answer with 'There are'")
+            st.write("Unique values per column:")
+            unique_values = {col: df[col].nunique() for col in df.columns}
+            st.write(unique_values)
+
+            st.write("**Identifying Unusual Unique Values**")
+            unusual_values = {}
+            for col in df.columns:
+                value_counts = df[col].value_counts(dropna=False).to_frame().reset_index()
+                value_counts.columns = ["Value", "Count"]
+                unusual_values[col] = value_counts
+            
+            for col, table in unusual_values.items():
+                st.write(f"**Column: {col}**")
+                st.dataframe(table)
+           
+            st.write("**Missing Values**")
+            missing_values = df.isnull().sum()
             st.write(missing_values)
-            duplicates = pandas_agent.run("Are there any duplicate values and if so where?")
-            st.write(duplicates)
+
+            st.write("**Distinct and Duplicate Value Pairs**")
+            duplicate_rows = df[df.duplicated(keep=False)]
+            st.write(duplicate_rows)
+
             st.write("**Data Summarisation**")
             st.write(df.describe())
             correlation_analysis = pandas_agent.run("Calculate correlations between numerical variables to identify potential relationships.")
@@ -77,11 +108,20 @@ if st.session_state.clicked[1]:
             new_features = pandas_agent.run("What new features would be interesting to create?.")
             st.write(new_features)
             return
+        
+       # def cleaning_agent():
+       #    st.write("Do you want to clean the data?")
 
         @st.cache_data
         def function_question_variable():
-            st.line_chart(df, y = [user_question_variable])
-            summary_statistics = pandas_agent.run(f"What are the mean, median, mode, standard deviation, variance, range, quartiles, skewness and kurtosis of {user_question_variable}")
+            if df[user_question_variable].dtype in ['int64', 'float64']:
+                st.line_chart(df, y=[user_question_variable])
+            else:
+                st.bar_chart(df[user_question_variable].value_counts())
+
+            summary_statistics = pandas_agent.run(
+                f"What are the mean, median, mode, standard deviation, variance, range, quartiles, skewness and kurtosis of {user_question_variable}"
+            )
             st.write(summary_statistics)
             normality = pandas_agent.run(f"Check for normality or specific distribution shapes of {user_question_variable}")
             st.write(normality)
@@ -110,11 +150,19 @@ if st.session_state.clicked[1]:
 
         function_agent()
 
+        # def cleaning_agent():
+
+        # Here should be a function that asks if data cleaning steps are needed
+        # Selection box for data cleaning steps which found in Data Overview
+        # As a final step the user should be asked if any further steps are need (Here should a function run that takes the user input and runs the python agent on it)
+
         st.subheader("Variable of study")
 
         user_question_variable = st.text_input("What variable are you interested in")
         if user_question_variable is not None and user_question_variable != "":
             function_question_variable()
+
+        # This Function need more flexibilty: The Chart should be choosen from which dtype the variable is
         
             st.subheader("Further study")
 
@@ -124,3 +172,26 @@ if st.session_state.clicked[1]:
                     function_question_dataframe()
             if user_question_dataframe in ("no", "No"):
                     st.write("")
+
+            if user_question_dataframe:
+                st.divider()
+                st.header("Descriptive Data Analysis")
+                st.write("Now that we have a better understanding of the data, let's begin with descriptive data analysis. We will ask questions about our dataset to uncover its main characteristics.")
+
+                prompt = st.text_input("Add your prompt here")
+
+                data_analysis_template = PromptTemplate(
+                    input_variables=["data_analysis_question"],
+                    template="Analyze the following dataset and provide insights with clear bullet points: {data_analysis_question}",
+                    )
+
+                data_analysis_chain = data_analysis_template | llm
+
+                if prompt:
+                    response = data_analysis_chain.invoke({"data_analysis_question": prompt})
+                    st.write(response)
+
+                    if prompt:
+                        st.divider()
+                        st.header("Data Science Problem")
+                        st.write("Now that we have digged deeper into our data, let's define a data science problem.")
