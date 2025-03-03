@@ -196,4 +196,14 @@ if st.session_state.clicked[1]:
                         st.header("Data Science Problem")
                         st.write("Now that we have digged deeper into our data, let's define a data science problem.")
                         
-                        test = st.text_input("Add your business problem here")
+                        prompt = st.text_input("Add your business problem here")
+
+                        data_problem_template = PromptTemplate(
+                            input_variables=["data_science_problem"],
+                            template="Define a data science problem based on the following business problem: {data_science_problem}",
+                            )
+
+                        data_problem_chain = data_problem_template | llm
+                        if prompt:
+                            response = data_problem_chain.invoke({"data_science_problem": prompt})
+                            st.write(response)
