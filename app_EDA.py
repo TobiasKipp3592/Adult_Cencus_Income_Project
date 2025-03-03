@@ -195,3 +195,5 @@ if st.session_state.clicked[1]:
                         st.divider()
                         st.header("Data Science Problem")
                         st.write("Now that we have digged deeper into our data, let's define a data science problem.")
+                        
+                        test = st.text_input("Add your business problem here")
