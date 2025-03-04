@@ -572,6 +572,12 @@ wheels = [
 ]
 
 [[package]]
+name = "fpdf"
+version = "1.7.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/37/c6/608a9e6c172bf9124aa687ec8b9f0e8e5d697d59a5f4fad0e2d5ec2a7556/fpdf-1.7.2.tar.gz", hash = "sha256:125840783289e7d12552b1e86ab692c37322e7a65b96a99e0ea86cca041b6779", size = 39504 }
+
+[[package]]
 name = "fqdn"
 version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1889,6 +1895,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "aif360" },
     { name = "fairlearn" },
+    { name = "fpdf" },
     { name = "imblearn" },
     { name = "jupyter" },
     { name = "kagglehub" },
@@ -1911,6 +1918,7 @@ dependencies = [
 requires-dist = [
     { name = "aif360", specifier = ">=0.6.1" },
     { name = "fairlearn", specifier = ">=0.12.0" },
+    { name = "fpdf", specifier = ">=1.7.2" },
     { name = "imblearn", specifier = ">=0.0" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "kagglehub", specifier = ">=0.3.9" },
