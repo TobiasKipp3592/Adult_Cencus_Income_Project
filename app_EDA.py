@@ -10,6 +10,8 @@ from langchain_experimental.agents.agent_toolkits import create_python_agent
 from langchain_experimental.tools.python.tool import PythonREPLTool 
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import WikipediaAPIWrapper
+from data_cleaning_app import fill_missing_values, rename_columns, clean_data
+
 # openai api
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -61,6 +63,12 @@ if st.session_state.clicked[1]:
         # Pandas Agent
         pandas_agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True)
 
+        # Clean the data
+        df_cleaned = clean_data(df)
+
+        # Pandas Agent cleaned Data
+        pandas_agent_cleaned = create_pandas_dataframe_agent(llm, df_cleaned, verbose=True, allow_dangerous_code=True)
+
         # Functions main
         @st.cache_data
         def function_agent():
@@ -109,8 +117,9 @@ if st.session_state.clicked[1]:
             st.write(new_features)
             return
         
-       # def cleaning_agent():
-       #    st.write("Do you want to clean the data?")
+        # def cleaning_agent():
+        #     df_cleaned = clean_data(df)
+        #     return df_cleaned
 
         @st.cache_data
         def function_question_variable():
@@ -149,12 +158,10 @@ if st.session_state.clicked[1]:
                 st.write(steps_eda())
 
         function_agent()
-
-        # def cleaning_agent():
-
-        # Here should be a function that asks if data cleaning steps are needed
-        # Selection box for data cleaning steps which found in Data Overview
-        # As a final step the user should be asked if any further steps are need (Here should a function run that takes the user input and runs the python agent on it)
+        # st.write("Based on given informationen I suggest this steps for a cleaned dataset: Fill missing values and rename columns")
+        # st.checkbox("Clean the dataset", on_change=cleaning_agent)
+        # cleaning_agent()
+        # st.write("The dataset is now cleaned")
 
         st.subheader("Variable of study")
 
@@ -196,4 +203,14 @@ if st.session_state.clicked[1]:
                         st.header("Data Science Problem")
                         st.write("Now that we have digged deeper into our data, let's define a data science problem.")
                         
-                        test = st.text_input("Add your business problem here")
+                        prompt = st.text_input("Add your business problem here")
+
+                        data_problem_template = PromptTemplate(
+                            input_variables=["data_science_problem"],
+                            template="Define a data science problem based on the following business problem: {data_science_problem}",
+                            )
+
+                        data_problem_chain = data_problem_template | llm
+                        if prompt:
+                            response = data_problem_chain.invoke({"data_science_problem": prompt})
+                            st.write(response)
