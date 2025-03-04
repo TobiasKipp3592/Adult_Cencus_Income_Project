@@ -63,10 +63,53 @@ if st.session_state.clicked[1]:
         pandas_agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True)
 
         # Functions main
+        @st.cache_data
+        def prompt_templates():
+            data_problem_template = PromptTemplate(
+                input_variables=["data_science_problem"],
+                template= "Convert the following problem into a data science problem: {data_science_problem}",
+            )
         
-       # def cleaning_agent():
-       #    st.write("Do you want to clean the data?")
+            model_selection_template = PromptTemplate(
+                input_variables=["data_problem"],
+                template= "Give a list of ten machine learning algorithms that are suitable to solve this problem: {data_problem}",
+            )
+            return data_problem_template, model_selection_template
+        
+        @st.cache_resource
+        def chains():
+            data_problem_template, model_selection_template = prompt_templates()
+            data_problem_chain = data_problem_template | llm
 
+            def format_data_problem(inputs):
+                return {"data_problem": inputs["data_problem"]} 
+        
+            model_selection_chain = model_selection_template | llm
+        
+            sequential_chain = RunnableMap({
+                "data_problem": data_problem_chain
+            }) | RunnableLambda(format_data_problem) | RunnableMap({
+                "data_problem": lambda x: x["data_problem"],  # Pass through the data_problem
+                "model_selection": model_selection_chain
+            })
+            return sequential_chain
+        
+        @st.cache_data
+        def chains_output(prompt):
+            my_chain = chains()
+            my_chain_output = my_chain.invoke({"data_science_problem": prompt})
+            my_data_problem = my_chain_output["data_problem"]
+            my_model_selection = my_chain_output["model_selection"]
+            return my_data_problem, my_model_selection
+        
+        @st.cache_data
+        def list_to_selectbox(my_model_selection_input):
+            algorithm_lines = my_model_selection_input.split("\n")
+            algorithms = [algorithm.split(":")[-1].split(".")[-1].strip() for algorithm in algorithm_lines if algorithm.strip()]
+            algorithms.insert(0, "Select Algorithm")
+            formatted_list_output = [f"{algorithm}" for algorithm in algorithms if algorithm]
+            return formatted_list_output
+ 
 
         # Main
 
@@ -76,37 +119,15 @@ if st.session_state.clicked[1]:
 
         prompt = st.text_input("Add your science problem here")
 
-        data_problem_template = PromptTemplate(
-            input_variables=["data_science_problem"],
-            template= "Convert the following problem into a data science problem: {data_science_problem}",
-            )
-        
-        model_selection_template = PromptTemplate(
-            input_variables=["data_problem"],
-            template= "Give a list of ten machine learning algorithms that are suitable to solve this problem: {data_problem}",
-            )
-        
-        data_problem_chain = data_problem_template | llm
-
-        def format_data_problem(inputs):
-            return {"data_problem": inputs["data_problem"]} 
-        
-        model_selection_chain = model_selection_template | llm
-        
-        sequential_chain = RunnableMap({
-            "data_problem": data_problem_chain
-        }) | RunnableLambda(format_data_problem) | RunnableMap({
-            "data_problem": lambda x: x["data_problem"],  # Pass through the data_problem
-            "model_selection": model_selection_chain
-        })
-
-
 
         if prompt:
-            response = sequential_chain.invoke({"data_science_problem": prompt})
-            st.subheader("Data Science Problem:")
-            st.write(response["data_problem"])
-            st.subheader("Suggested Machine Learning Models:")
-            st.write(response["model_selection"])
+            my_data_problem, my_model_selection = chains_output(prompt)
             
+            st.subheader("Data Science Problem:")
+            st.write(my_data_problem)
+            st.subheader("Suggested Machine Learning Models:")
+            st.write(my_model_selection)
+            
+            formatted_list = list_to_selectbox(my_model_selection)
+            selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
         
