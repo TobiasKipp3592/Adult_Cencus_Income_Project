@@ -93,7 +93,22 @@ if st.session_state.clicked[1]:
                 "model_selection": model_selection_chain
             })
             return sequential_chain
-
+        
+        @st.cache_data
+        def chains_output(prompt):
+            my_chain = chains()
+            my_chain_output = my_chain.invoke({"data_science_problem": prompt})
+            my_data_problem = my_chain_output["data_problem"]
+            my_model_selection = my_chain_output["model_selection"]
+            return my_data_problem, my_model_selection
+        
+        @st.cache_data
+        def list_to_selectbox(my_model_selection_input):
+            algorithm_lines = my_model_selection_input.split("\n")
+            algorithms = [algorithm.split(":")[-1].split(".")[-1].strip() for algorithm in algorithm_lines if algorithm.strip()]
+            algorithms.insert(0, "Select Algorithm")
+            formatted_list_output = [f"{algorithm}" for algorithm in algorithms if algorithm]
+            return formatted_list_output
  
 
         # Main
@@ -106,11 +121,13 @@ if st.session_state.clicked[1]:
 
 
         if prompt:
-            sequential_chain = chains()
-            response = sequential_chain.invoke({"data_science_problem": prompt})
-            st.subheader("Data Science Problem:")
-            st.write(response["data_problem"])
-            st.subheader("Suggested Machine Learning Models:")
-            st.write(response["model_selection"])
+            my_data_problem, my_model_selection = chains_output(prompt)
             
+            st.subheader("Data Science Problem:")
+            st.write(my_data_problem)
+            st.subheader("Suggested Machine Learning Models:")
+            st.write(my_model_selection)
+            
+            formatted_list = list_to_selectbox(my_model_selection)
+            selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
         
