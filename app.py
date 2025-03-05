@@ -58,7 +58,7 @@ if st.session_state.clicked[1]:
         df = pd.read_csv(user_csv, low_memory=False, na_values=["?"])
 
         
-        llm = ChatOpenAI(model="gpt-4", temperature=0)
+        llm = ChatOpenAI(model="gpt-4", temperature=0.3)
         
 
         # Function sidebar
@@ -116,12 +116,12 @@ if st.session_state.clicked[1]:
         def prompt_templates():
             data_problem_template = PromptTemplate(
                 input_variables=["data_science_problem"],
-                template= "Convert the following problem into a data science problem: {data_science_problem}",
+                template= "Convert the following problem into a concise data science problem in one sentence: {data_science_problem}",
             )
         
             model_selection_template = PromptTemplate(
                 input_variables=["data_problem"],
-                template= "Give a list of ten machine learning algorithms that are suitable to solve this problem: {data_problem}",
+                template= "Give a list of 10 machine learning algorithms that are suitable to solve this problem: {data_problem}",
             )
             return data_problem_template, model_selection_template
         
@@ -152,18 +152,12 @@ if st.session_state.clicked[1]:
             return my_data_problem, _my_model_selection
         
         @st.cache_data
-        def list_to_selectbox(_my_model_selection_input):
-            if isinstance(_my_model_selection_input, AIMessage):
-                _my_model_selection_input = _my_model_selection_input.content  # Extrahiere den Textinhalt
-            # Zerlege den Text in Zeilen
-            algorithm_lines = _my_model_selection_input.split("\n")
-            # Extrahiere nur den Namen des Algorithmus
-            algorithms = [
-                algorithm.split(":")[0].strip()  # Nimmt den Namen vor dem Doppelpunkt
-                for algorithm in algorithm_lines if ":" in algorithm  # Filtert nur relevante Zeilen
-            ]
-            algorithms.insert(0, "Select Algorithm")  
-            return algorithms
+        def list_to_selectbox(my_model_selection_input):
+            algorithm_lines = my_model_selection_input.split("\n")
+            algorithms = [algorithm.split(":")[-1].split(".")[-1].strip() for algorithm in algorithm_lines if algorithm.strip()]
+            algorithms.insert(0, "Select Algorithm")
+            formatted_list_output = [f"{algorithm}" for algorithm in algorithms if algorithm]
+            return formatted_list_output
 
         @st.cache_resource
         def python_agent():
@@ -172,7 +166,7 @@ if st.session_state.clicked[1]:
                 tool = PythonREPLTool(),
                 verbose=True,
                 agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                handle_parsing_error=True,
+                handle_parsing_errors=True,
                 max_iterations = 5,
             )
             return agent_executor
@@ -183,7 +177,36 @@ if st.session_state.clicked[1]:
                 df.to_csv(tmpfile.name, index=False)
                 temp_path = tmpfile.name.replace("\\", "/")  # Speichere den Pfad
 
-            solution = python_agent().run(f"Write a Python script to solve this: {my_data_problem}, using this algorithm: {selected_algorithm}, using this path to the dataset: {temp_path}. First read the file with pandas: df = pd.read_csv(r'{temp_path}'). Check available columns with: print(df.columns)")
+            solution = python_agent().run(
+                    f"""
+                    Write a comprehensive Python script to solve this problem: {my_data_problem}
+                    
+                    Use the algorithm: {selected_algorithm}
+                    Dataset path: {temp_path}
+                    Check available columns with: print(df.columns)
+
+                    Structure your solution to include:
+                    
+                    1. Import all necessary libraries (using fairlearn)
+                    2. Load and prepare the dataset: df = pd.read_csv(r'{temp_path}')
+                    3. Perform any necessary preprocessing (encoding, scaling, etc.)
+                    4. Split data into training and testing sets
+                    5. Implement and train the {selected_algorithm} model
+                    6. Make predictions and evaluate using standard performance metrics (accuracy, precision, recall, F1-score, ROC-AUC)
+                    7. Calculate and explain the following fairness metrics:
+                    - Demographic Parity Difference (DPD)
+                    - Demographic Parity Odds (DPO)
+                    - Equal Opportunity Difference (EOD)
+                    8. Visualize key results
+                    9. Provide interpretation of model performance and fairness analysis
+                    
+                    Focus on generating complete, executable code that thoroughly evaluates both performance and fairness.
+                    """
+                )
+            
+            if os.path.exists(temp_path):
+                    os.remove(temp_path)
+
             return solution
         
 
@@ -226,97 +249,97 @@ if st.session_state.clicked[1]:
             st.divider()
             st.header("Descriptive Data Analysis")
 
-        questions = [
-            "How is income (≤50K / >50K) distributed in the general population, and what patterns or anomalies can be identified?",
-            "How does the probability of earning more than 50K change with increasing age?",
-            "Are there significant income differences between men and women?",
-            "How does income distribution (≤50K / >50K) differ among various ethnic groups?",
-            "Is there a relationship between a person's country of origin and their income class (≤50K / >50K)?"
-        ]
+        # questions = [
+        #     "How is income (≤50K / >50K) distributed in the general population, and what patterns or anomalies can be identified?",
+        #     "How does the probability of earning more than 50K change with increasing age?",
+        #     "Are there significant income differences between men and women?",
+        #     "How does income distribution (≤50K / >50K) differ among various ethnic groups?",
+        #     "Is there a relationship between a person's country of origin and their income class (≤50K / >50K)?"
+        # ]
 
-        if "remaining_questions" not in st.session_state:
-            st.session_state.remaining_questions = questions.copy()
-            st.session_state.completed_analyses = []
+        # if "remaining_questions" not in st.session_state:
+        #     st.session_state.remaining_questions = questions.copy()
+        #     st.session_state.completed_analyses = []
 
-        if "df_cleaned" not in st.session_state or st.session_state.df_cleaned is None:
-            st.error("No dataset uploaded. Please upload a dataset before proceeding.")
-        else:
-            if st.session_state.remaining_questions:
-                selected_question = st.session_state.remaining_questions[0]
-                agent = create_pandas_dataframe_agent(llm, st.session_state.df_cleaned, verbose=True, allow_dangerous_code=True)
-                response = agent.run(selected_question)
-                st.subheader("Analysis Result:")
-                st.write(response)
+        # if "df_cleaned" not in st.session_state or st.session_state.df_cleaned is None:
+        #     st.error("No dataset uploaded. Please upload a dataset before proceeding.")
+        # else:
+        #     if st.session_state.remaining_questions:
+        #         selected_question = st.session_state.remaining_questions[0]
+        #         agent = create_pandas_dataframe_agent(llm, st.session_state.df_cleaned, verbose=True, allow_dangerous_code=True)
+        #         response = agent.run(selected_question)
+        #         st.subheader("Analysis Result:")
+        #         st.write(response)
                 
-                fig, ax = plt.subplots()
-                if "income" in selected_question:
-                    st.session_state.df_cleaned['income'] = st.session_state.df_cleaned['income'].astype(str)
-                    df_grouped = st.session_state.df_cleaned.groupby(['income']).size()
-                    df_grouped.plot(kind='bar', ax=ax)
-                    ax.set_title("Income Distribution")
-                    ax.set_ylabel("Count")
-                    ax.set_xlabel("Income Category")
+        #         fig, ax = plt.subplots()
+        #         if "income" in selected_question:
+        #             st.session_state.df_cleaned['income'] = st.session_state.df_cleaned['income'].astype(str)
+        #             df_grouped = st.session_state.df_cleaned.groupby(['income']).size()
+        #             df_grouped.plot(kind='bar', ax=ax)
+        #             ax.set_title("Income Distribution")
+        #             ax.set_ylabel("Count")
+        #             ax.set_xlabel("Income Category")
                 
-                elif "age" in selected_question:
-                    df_grouped = st.session_state.df_cleaned.groupby(['age', 'income']).size().unstack()
-                    df_grouped.plot(kind='line', ax=ax)
-                    ax.set_title("Income Distribution by Age")
-                    ax.set_ylabel("Count")
-                    ax.set_xlabel("Age")
+        #         elif "age" in selected_question:
+        #             df_grouped = st.session_state.df_cleaned.groupby(['age', 'income']).size().unstack()
+        #             df_grouped.plot(kind='line', ax=ax)
+        #             ax.set_title("Income Distribution by Age")
+        #             ax.set_ylabel("Count")
+        #             ax.set_xlabel("Age")
                 
-                elif "gender" in selected_question:
-                    df_grouped = st.session_state.df_cleaned.groupby(['sex', 'income']).size().unstack()
-                    df_grouped.plot(kind='bar', stacked=True, ax=ax)
-                    ax.set_title("Income Distribution by Gender")
-                    ax.set_ylabel("Count")
-                    ax.set_xlabel("Gender")
+        #         elif "gender" in selected_question:
+        #             df_grouped = st.session_state.df_cleaned.groupby(['sex', 'income']).size().unstack()
+        #             df_grouped.plot(kind='bar', stacked=True, ax=ax)
+        #             ax.set_title("Income Distribution by Gender")
+        #             ax.set_ylabel("Count")
+        #             ax.set_xlabel("Gender")
                 
-                elif "ethnic" in selected_question:
-                    df_grouped = st.session_state.df_cleaned.groupby(['race', 'income']).size().unstack()
-                    df_grouped.plot(kind='bar', stacked=True, ax=ax)
-                    ax.set_title("Income Distribution by Ethnic Group")
-                    ax.set_ylabel("Count")
-                    ax.set_xlabel("Ethnic Group")
+        #         elif "ethnic" in selected_question:
+        #             df_grouped = st.session_state.df_cleaned.groupby(['race', 'income']).size().unstack()
+        #             df_grouped.plot(kind='bar', stacked=True, ax=ax)
+        #             ax.set_title("Income Distribution by Ethnic Group")
+        #             ax.set_ylabel("Count")
+        #             ax.set_xlabel("Ethnic Group")
                 
-                elif "country of origin" in selected_question:
-                    df_grouped = st.session_state.df_cleaned.groupby(['native-country', 'income']).size().unstack()
-                    df_grouped.plot(kind='barh', stacked=True, ax=ax)
-                    ax.set_title("Income Distribution by Country of Origin")
-                    ax.set_ylabel("Country of Origin")
-                    ax.set_xlabel("Count")
+        #         elif "country of origin" in selected_question:
+        #             df_grouped = st.session_state.df_cleaned.groupby(['native-country', 'income']).size().unstack()
+        #             df_grouped.plot(kind='barh', stacked=True, ax=ax)
+        #             ax.set_title("Income Distribution by Country of Origin")
+        #             ax.set_ylabel("Country of Origin")
+        #             ax.set_xlabel("Count")
                 
-                st.pyplot(fig)
-                st.session_state.completed_analyses.append((selected_question, response, fig))
+        #         st.pyplot(fig)
+        #         st.session_state.completed_analyses.append((selected_question, response, fig))
                 
-                if st.button("Continue with another question"):
-                    st.session_state.remaining_questions.pop(0)
-                    st.rerun()
+        #         if st.button("Continue with another question"):
+        #             st.session_state.remaining_questions.pop(0)
+        #             st.rerun()
                 
-                if not st.session_state.remaining_questions:
-                    st.success("All questions have been analyzed!")
+        #         if not st.session_state.remaining_questions:
+        #             st.success("All questions have been analyzed!")
                     
-                    if st.button("Save results as PDF"):
-                        pdf = FPDF()
-                        pdf.set_auto_page_break(auto=True, margin=15)
-                        pdf.add_page()
-                        pdf.set_font("Arial", size=12)
-                        pdf.cell(200, 10, "Analysis Report", ln=True, align='C')
+        #             if st.button("Save results as PDF"):
+        #                 pdf = FPDF()
+        #                 pdf.set_auto_page_break(auto=True, margin=15)
+        #                 pdf.add_page()
+        #                 pdf.set_font("Arial", size=12)
+        #                 pdf.cell(200, 10, "Analysis Report", ln=True, align='C')
                         
-                        for idx, (question, analysis, fig) in enumerate(st.session_state.completed_analyses):
-                            pdf.add_page()
-                            pdf.cell(0, 10, f"{idx+1}. {question}", ln=True)
-                            pdf.multi_cell(0, 10, analysis)
+        #                 for idx, (question, analysis, fig) in enumerate(st.session_state.completed_analyses):
+        #                     pdf.add_page()
+        #                     pdf.cell(0, 10, f"{idx+1}. {question}", ln=True)
+        #                     pdf.multi_cell(0, 10, analysis)
                             
-                            image_path = f"temp_chart_{idx}.png"
-                            fig.savefig(image_path)
-                            pdf.image(image_path, x=10, y=pdf.get_y() + 10, w=180)
-                            os.remove(image_path)
+        #                     image_path = f"temp_chart_{idx}.png"
+        #                     fig.savefig(image_path)
+        #                     pdf.image(image_path, x=10, y=pdf.get_y() + 10, w=180)
+        #                     os.remove(image_path)
                         
-                        pdf_output_path = "analysis_report.pdf"
-                        pdf.output(pdf_output_path)
-                        with open(pdf_output_path, "rb") as pdf_file:
-                            st.download_button(label="Download PDF Report", data=pdf_file, file_name="analysis_report.pdf", mime="application/pdf")
-
+        #                 pdf_output_path = "analysis_report.pdf"
+        #                 pdf.output(pdf_output_path)
+        #                 with open(pdf_output_path, "rb") as pdf_file:
+        #                     st.download_button(label="Download PDF Report", data=pdf_file, file_name="analysis_report.pdf", mime="application/pdf")
+        if st.session_state.cleaned:
             st.divider()
             st.header("Data Science Problem")
             st.write("Now that we have digged deeper into our data, let's define a data science problem.")
@@ -348,7 +371,14 @@ if st.session_state.clicked[1]:
                 formatted_list = list_to_selectbox(my_model_selection)
                 selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
 
-                if selected_algorithm is not None and selected_algorithm!= "Select Algorithm":
+                if selected_algorithm is not None and selected_algorithm != "Select Algorithm":
                     st.subheader("Solution")
                     solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df_cleaned)
-                    st.write(solution)
+                    st.code(solution)
+
+                    st.download_button(
+                        label="Download Solution Code",
+                        data=solution,
+                        file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
+                        mime="text/plain"
+                    )

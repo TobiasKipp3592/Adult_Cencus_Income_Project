@@ -69,6 +69,17 @@ if st.session_state.clicked[1]:
             response = llm(prompt)
             return response
 
+        @st.cache_data
+        def data_science_framing():
+            data_science_framing = llm("Write a couple of paragraphs about the importance of framing a data science problem approriately")
+            return data_science_framing
+
+        @st.cache_data
+        def algortihm_selection():
+            data_science_framing = llm("Write a couple of paragraphs about the importance of choosing the right algorithm and of considering more than one algorithm when trying to solve a data science problem.")
+            return data_science_framing
+
+
         # Pandas Agent
         pandas_agent = create_pandas_dataframe_agent(llm, st.session_state.df, verbose=True, allow_dangerous_code=True)
 
@@ -147,6 +158,11 @@ if st.session_state.clicked[1]:
         st.header("Data Science Problem")
         st.write("Now that we have digged deeper into our data, let's define a data science problem.")
 
+        with st.sidebar:
+            with st.expander("The importance of framing a data science problem approriately"):
+                st.caption(data_science_framing())
+
+
         prompt = st.text_input("Add your science problem here")
 
 
@@ -157,6 +173,11 @@ if st.session_state.clicked[1]:
             st.write(my_data_problem)
             st.subheader("Suggested Machine Learning Models:")
             st.write(my_model_selection)
+            
+            with st.sidebar:
+                with st.expander("Which algorithm?"):
+                    st.caption(algortihm_selection())
+
             
             formatted_list = list_to_selectbox(my_model_selection)
             selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
