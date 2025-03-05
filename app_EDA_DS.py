@@ -11,6 +11,8 @@ from langchain_experimental.agents.agent_toolkits import create_python_agent
 from langchain_experimental.tools.python.tool import PythonREPLTool 
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import WikipediaAPIWrapper
+import tempfile
+
 # openai api
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -45,12 +47,20 @@ def clicked(button):
 st.button("Let's get started", on_click= clicked, args=[1])
 if st.session_state.clicked[1]:
     user_csv = st.file_uploader("Upload your CSV file here", type=["csv"])
+    if 'df' not in st.session_state:
+        st.session_state.df = None
     if user_csv is not None:
         user_csv.seek(0)
-        df = pd.read_csv(user_csv, low_memory=False)
+        st.session_state.df = pd.read_csv(user_csv, low_memory=False)
+        st.write(st.session_state.df.head())
 
         # llm model
-        llm = OpenAI(temperature=0)
+        llm = OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            temperature=0.3, 
+            request_timeout=40  # Alternative Methode in neueren Versionen
+        )
+
 
         # Function sidebar
         @st.cache_data
@@ -60,7 +70,7 @@ if st.session_state.clicked[1]:
             return response
 
         # Pandas Agent
-        pandas_agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True)
+        pandas_agent = create_pandas_dataframe_agent(llm, st.session_state.df, verbose=True, allow_dangerous_code=True)
 
         # Functions main
         @st.cache_data
@@ -109,7 +119,27 @@ if st.session_state.clicked[1]:
             algorithms.insert(0, "Select Algorithm")
             formatted_list_output = [f"{algorithm}" for algorithm in algorithms if algorithm]
             return formatted_list_output
- 
+
+        @st.cache_resource
+        def python_agent():
+            agent_executor = create_python_agent(
+                llm = llm,
+                tool = PythonREPLTool(),
+                verbose=True,
+                agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+                handle_parsing_error=True,
+                max_iterations = 5,
+            )
+            return agent_executor
+        
+        @st.cache_data
+        def python_solution(my_data_problem, selected_algorithm, df):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmpfile:
+                df.to_csv(tmpfile.name, index=False)
+                temp_path = tmpfile.name.replace("\\", "/")  # Speichere den Pfad
+
+            solution = python_agent().run(f"Write a Python script to solve this: {my_data_problem}, using this algorithm: {selected_algorithm}, using this path to the dataset: {temp_path}. First read the file with pandas: df = pd.read_csv(r'{temp_path}'). Check available columns with: print(df.columns)")
+            return solution
 
         # Main
 
@@ -130,4 +160,9 @@ if st.session_state.clicked[1]:
             
             formatted_list = list_to_selectbox(my_model_selection)
             selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
+
+            if selected_algorithm is not None and selected_algorithm!= "Select Algorithm":
+                st.subheader("Solution")
+                solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df)
+                st.write(solution)
         
