@@ -173,40 +173,54 @@ if st.session_state.clicked[1]:
         
         @st.cache_data
         def python_solution(my_data_problem, selected_algorithm, df):
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmpfile:
-                df.to_csv(tmpfile.name, index=False)
-                temp_path = tmpfile.name.replace("\\", "/")  # Speichere den Pfad
-
-            solution = python_agent().run(
-                    f"""
-                    Write a comprehensive Python script to solve this problem: {my_data_problem}
-                    
-                    Use the algorithm: {selected_algorithm}
-                    Dataset path: {temp_path}
-                    Check available columns with: print(df.columns)
-
-                    Structure your solution to include:
-                    
-                    1. Import all necessary libraries (using fairlearn)
-                    2. Load and prepare the dataset: df = pd.read_csv(r'{temp_path}')
-                    3. Perform any necessary preprocessing (encoding, scaling, etc.)
-                    4. Split data into training and testing sets
-                    5. Implement and train the {selected_algorithm} model
-                    6. Make predictions and evaluate using standard performance metrics (accuracy, precision, recall, F1-score, ROC-AUC)
-                    7. Calculate and explain the following fairness metrics:
-                    - Demographic Parity Difference (DPD)
-                    - Demographic Parity Odds (DPO)
-                    - Equal Opportunity Difference (EOD)
-                    8. Visualize key results
-                    9. Provide interpretation of model performance and fairness analysis
-                    
-                    Focus on generating complete, executable code that thoroughly evaluates both performance and fairness.
-                    """
-                )
+            # Instead of relying on the agent to generate full code,
+            # we'll create a template and use the LLM directly
             
-            if os.path.exists(temp_path):
-                    os.remove(temp_path)
-
+            # Get column names and some sample data
+            columns = df.columns.tolist()
+            sample_data = df.head(2).to_string()
+            data_types = df.dtypes.to_string()
+            
+            # Prepare a prompt for the LLM
+            prompt = f"""
+            You are a Python expert specializing in data science and machine learning.
+            
+            TASK: Create a comprehensive Python script to solve this problem: {my_data_problem}
+            
+            ALGORITHM TO USE: {selected_algorithm}
+            
+            DATASET INFORMATION:
+            - Shape: {df.shape[0]} rows and {df.shape[1]} columns
+            - Columns: {', '.join(columns)}
+            - Data types: 
+            {data_types}
+            
+            Sample data:
+            {sample_data}
+            
+            Your code should:
+            1. Import all necessary libraries (pandas, numpy, sklearn, matplotlib, etc.)
+            2. Include proper dataset loading: df = pd.read_csv('dataset.csv')
+            3. Perform necessary preprocessing (encoding categorical variables, handling missing values, scaling features)
+            4. Split data into training and testing sets
+            5. Implement and train the {selected_algorithm} model
+            6. Make predictions and evaluate using standard metrics (accuracy, precision, recall, F1-score)
+            7. Include fairness analysis with fairlearn (EOD, DPD, DPO)
+            8. Visualize results with matplotlib or seaborn
+            9. Include detailed comments explaining each step
+            
+            Return ONLY Python code, no explanations before or after. The code should be complete and ready to run.
+            """
+            
+            # Use the LLM directly instead of the agent
+            solution = llm.invoke(prompt).content
+            
+            # Clean up the response to ensure it's valid Python code
+            if "```python" in solution:
+                solution = solution.split("```python")[1].split("```")[0].strip()
+            elif "```" in solution:
+                solution = solution.split("```")[1].split("```")[0].strip()
+                
             return solution
         
 
@@ -372,13 +386,29 @@ if st.session_state.clicked[1]:
                 selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
 
                 if selected_algorithm is not None and selected_algorithm != "Select Algorithm":
-                    st.subheader("Solution")
-                    solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df_cleaned)
-                    st.code(solution)
-
-                    st.download_button(
-                        label="Download Solution Code",
-                        data=solution,
-                        file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
-                        mime="text/plain"
-                    )
+                    st.subheader(f"Python Solution using {selected_algorithm}")
+                    
+                    with st.spinner('Generating solution code... This may take a moment.'):
+                        try:
+                            solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df_cleaned)
+                            
+                            # Display the code with syntax highlighting
+                            st.code(solution, language='python')
+                            
+                            # Add a download button
+                            st.download_button(
+                                label="Download Python Code",
+                                data=solution,
+                                file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
+                                mime="text/plain"
+                            )
+                            
+                            # Add an explanation section
+                            with st.expander("Code Explanation"):
+                                explanation_prompt = f"Explain the following {selected_algorithm} code in simple terms:\n\n{solution[:1000]}..."
+                                explanation = llm.invoke(explanation_prompt).content
+                                st.write(explanation)
+                                
+                        except Exception as e:
+                            st.error(f"Error generating solution: {str(e)}")
+                            st.info("Try selecting a different algorithm or refreshing the page.")
