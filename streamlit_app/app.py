@@ -67,19 +67,36 @@ if st.session_state.clicked[1]:
         def steps_eda():
             prompt = "Explain the standard steps of Exploratory Data Analysis (EDA) with examples."
             response = llm(prompt)
-            return response
+
+            if hasattr(response, "content"):
+                return response.content.strip()
+            elif isinstance(response, dict) and "content" in response:
+                return response["content"].strip()
+            else:
+                return str(response)
 
         @st.cache_data
         def data_science_framing():
             data_science_framing = llm("Write a couple of paragraphs about the importance of framing a data science problem approriately")
-            return data_science_framing
+            
+            if hasattr(data_science_framing, "content"):
+                return data_science_framing.content.strip()
+            elif isinstance(data_science_framing, dict) and "content" in data_science_framing:
+                return data_science_framing["content"].strip()
+            else:
+                return str(data_science_framing)
 
         @st.cache_data
         def algortihm_selection():
-            data_science_framing = llm("Write a couple of paragraphs about the importance of choosing the right algorithm and of considering more than one algorithm when trying to solve a data science problem.")
-            return data_science_framing
-
-
+            algortihm_selection_framing = llm("Write a couple of paragraphs about the importance of choosing the right algorithm and of considering more than one algorithm when trying to solve a data science problem.")
+            
+            if hasattr(algortihm_selection_framing, "content"):
+                return algortihm_selection_framing.content.strip()
+            elif isinstance(algortihm_selection_framing, dict) and "content" in algortihm_selection_framing:
+                return algortihm_selection_framing["content"].strip()
+            else:
+                return str(algortihm_selection_framing)
+            
         # Functions main
         @st.cache_data
         def function_agent():
@@ -298,13 +315,22 @@ if st.session_state.clicked[1]:
             @st.cache_data
             def data_analysis(question_index, question, df_cleaned, _llm):
                 agent = create_pandas_dataframe_agent(llm, df_cleaned, verbose=True, allow_dangerous_code=True)
-                response = agent.run(question)
+
+                formatted_question = f"""
+                Answer the following question concisely and in clear text:
+
+                Question: {question}
+                """
+
+                response = agent.run({"input": formatted_question})
                 
-                fig, ax = plt.subplots()
                 plt.style.use("dark_background")
+                fig, ax = plt.subplots()
+                
                 colors = ["silver", "teal"]
 
                 if question_index == 0:
+                    plt.style.use("dark_background")
                     df_cleaned['income'] = df_cleaned['income'].astype(str)
                     df_grouped = df_cleaned.groupby(['income']).size()
                     df_grouped.plot(kind='bar', ax=ax, color=colors)
@@ -339,8 +365,9 @@ if st.session_state.clicked[1]:
                     top_countries = df_cleaned['native_country'].value_counts().nlargest(10).index
                     df_grouped = df_grouped.loc[top_countries]
 
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    df_grouped.plot(kind='barh', stacked=True, ax=ax, color=["gray", "teal"])
+                    plt.style.use("dark_background")
+                    fig, ax = plt.subplots()
+                    df_grouped.plot(kind='barh', stacked=True, ax=ax, color=colors)
                     ax.set_title("Top 10 Income Distribution by Country of Origin")
                     ax.set_ylabel("Country of Origin")
                     ax.set_xlabel("Count")
@@ -444,81 +471,91 @@ if st.session_state.clicked[1]:
 
                 pdf_bytes = pdf.output(dest="S").encode("latin1")
                 return io.BytesIO(pdf_bytes)
+            
+            if "all_questions_analyzed" not in st.session_state:
+                st.session_state["all_questions_analyzed"] = False
+
+            # Wenn alle Fragen bearbeitet wurden, setze den Status auf True
+            if (
+                st.session_state.selected_questions
+                and st.session_state.current_question_index >= len(st.session_state.selected_questions)
+            ):
+                st.session_state["all_questions_analyzed"] = True
 
             if st.button("Generate PDF-Report"):
                 if not hasattr(st.session_state, 'completed_analyses') or not st.session_state.completed_analyses:
-                    st.error("Bitte führen Sie zunächst Analysen durch.")
+                    st.error("Please conduct analyses first.")
                     st.stop()
 
                 pdf_buffer = create_professional_report(st.session_state.completed_analyses)
-                
+
                 st.success("✅ PDF-Report has been successfully generated!")
 
-                st.download_button(
+                pdf_download = st.download_button(
                     label="📥 Download PDF-Report",
                     data=pdf_buffer,
                     file_name="data_analytics_report.pdf",
                     mime="application/pdf"
                 )
 
-        if st.session_state.cleaned:
-            st.divider()
-            st.header("Data Science Problem")
-            st.write("Now that we have digged deeper into our data, let's define a data science problem.")
+            if st.session_state.get("all_questions_analyzed", False):
+                st.divider()
+                st.header("Data Science Problem")
+                st.write("Now that we have digged deeper into our data, let's define a data science problem.")
 
-            with st.sidebar:
-                with st.expander("The importance of framing a data science problem approriately"):
-                    st.caption(data_science_framing())
-
-
-            prompt = st.text_input("Add your science problem here")
-
-
-            if prompt:
-                my_chain_output = chains_output(prompt)
-                my_data_problem = my_chain_output[0].content if hasattr(my_chain_output[0], 'content') else str(my_chain_output[0])
-                my_model_selection = my_chain_output[1].content if hasattr(my_chain_output[1], 'content') else str(my_chain_output[1])
-
-            
-                st.subheader("Data Science Problem:")
-                st.write(my_data_problem)
-                st.subheader("Suggested Machine Learning Models:")
-                st.write(my_model_selection)
-            
                 with st.sidebar:
-                    with st.expander("Which algorithm?"):
-                        st.caption(algortihm_selection())
+                    with st.expander("The importance of framing a data science problem approriately"):
+                        st.caption(data_science_framing())
 
-            
-                formatted_list = list_to_selectbox(my_model_selection)
-                selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
 
-                if selected_algorithm is not None and selected_algorithm != "Select Algorithm":
-                    st.subheader(f"Python Solution using {selected_algorithm}")
+                prompt = st.text_input("Add your science problem here")
+
+                if prompt:
+                    my_chain_output = chains_output(prompt)
+                    my_data_problem = my_chain_output[0].content if hasattr(my_chain_output[0], 'content') else str(my_chain_output[0])
+                    my_model_selection = my_chain_output[1].content if hasattr(my_chain_output[1], 'content') else str(my_chain_output[1])
+
                     
-                    with st.spinner('Generating solution code... This may take a moment.'):
-                        try:
-                            solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df_cleaned)
-                            
-                            # Display the code with syntax highlighting
-                            st.code(solution, language='python')
-                            
-                            # Add a download button
-                            st.download_button(
-                                label="Download Python Code",
-                                data=solution,
-                                file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
-                                mime="text/plain"
-                            )
-                            if st.button("Execute Code and Show Results", key="execute_code_btn"):
-                                st.balloons()
+                    st.subheader("Data Science Problem:")
+                    st.write(my_data_problem)
+                    st.subheader("Suggested Machine Learning Models:")
+                    st.write(my_model_selection)
+                    
+                    with st.sidebar:
+                        with st.expander("Which algorithm?"):
+                            st.caption(algortihm_selection())
 
-                            # Add an explanation section
-                            with st.expander("Code Explanation"):
-                                explanation_prompt = f"Explain the following {selected_algorithm} code in simple terms:\n\n{solution[:1000]}..."
-                                explanation = llm.invoke(explanation_prompt).content
-                                st.write(explanation)
-                                
-                        except Exception as e:
-                            st.error(f"Error generating solution: {str(e)}")
-                            st.info("Try selecting a different algorithm or refreshing the page.")
+                    
+                    formatted_list = list_to_selectbox(my_model_selection)
+                    selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
+
+                    if selected_algorithm is not None and selected_algorithm != "Select Algorithm":
+                        st.subheader(f"Python Solution using {selected_algorithm}")
+                            
+                        with st.spinner('Generating solution code... This may take a moment.'):
+                            try:
+                                solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df_cleaned)
+                                    
+                                # Display the code with syntax highlighting
+                                st.code(solution, language='python')
+
+                                # Add an explanation section
+                                with st.expander("Code Explanation"):
+                                    explanation_prompt = f"Explain the following {selected_algorithm} code in simple terms:\n\n{solution[:1000]}..."
+                                    explanation = llm.invoke(explanation_prompt).content
+                                    st.write(explanation)
+                                    
+                                # Add a download button
+                                st.download_button(
+                                    label="Download Python Code",
+                                    data=solution,
+                                    file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
+                                    mime="text/plain"
+                                    )
+                                if st.button("Execute Code and Show Results", key="execute_code_btn"):
+                                    st.balloons()
+                                    st.markdown("<h1 style='text-align: center; font-size: 50px; color: red;'>To be continued!</h1>", unsafe_allow_html=True)
+        
+                            except Exception as e:
+                                st.error(f"Error generating solution: {str(e)}")
+                                st.info("Try selecting a different algorithm or refreshing the page.")
