@@ -13,7 +13,7 @@ from langchain_experimental.agents.agent_toolkits import create_python_agent
 from langchain_experimental.tools.python.tool import PythonREPLTool 
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import WikipediaAPIWrapper
-from data_cleaning_app import fill_missing_values, rename_columns, clean_data
+from streamlit_app.data_cleaning_app import fill_missing_values, rename_columns, clean_data
 from fpdf import FPDF
 from datetime import datetime
 

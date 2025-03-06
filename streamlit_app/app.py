@@ -15,7 +15,7 @@ from langchain_experimental.agents.agent_toolkits import create_python_agent
 from langchain_experimental.tools.python.tool import PythonREPLTool 
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import WikipediaAPIWrapper
-from data_cleaning_app import fill_missing_values, rename_columns, clean_data
+from streamlit_app.data_cleaning_app import fill_missing_values, rename_columns, clean_data
 from fpdf import FPDF
 import tempfile
 
@@ -402,7 +402,9 @@ if st.session_state.clicked[1]:
                                 file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
                                 mime="text/plain"
                             )
-                            
+                            if st.button("Execute Code and Show Results", key="execute_code_btn"):
+                                st.balloons()
+
                             # Add an explanation section
                             with st.expander("Code Explanation"):
                                 explanation_prompt = f"Explain the following {selected_algorithm} code in simple terms:\n\n{solution[:1000]}..."

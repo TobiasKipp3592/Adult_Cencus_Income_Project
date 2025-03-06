@@ -21,7 +21,7 @@ from langchain_experimental.agents.agent_toolkits import create_python_agent
 from langchain_experimental.tools.python.tool import PythonREPLTool 
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import WikipediaAPIWrapper
-from data_cleaning_app import fill_missing_values, rename_columns, clean_data
+from streamlit_app.data_cleaning_app import fill_missing_values, rename_columns, clean_data
 from fpdf import FPDF
 import tempfile
 
@@ -590,41 +590,41 @@ if st.session_state.clicked[1]:
                 formatted_list = list_to_selectbox(my_model_selection)
                 selected_algorithm = st.selectbox("Select machine learning algorithm", formatted_list)
 
-            if selected_algorithm is not None and selected_algorithm != "Select Algorithm":
-                st.subheader(f"Python Solution using {selected_algorithm}")
-                
-                with st.spinner('Generating solution code... This may take a moment.'):
-                    try:
-                        solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df_cleaned)
-                        
-                        # Display the code with syntax highlighting
-                        st.code(solution, language='python')
-                        
-                        # Add a download button
-                        st.download_button(
-                            label="Download Python Code",
-                            data=solution,
-                            file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
-                            mime="text/plain"
-                        )
-                        
-                        # Add execute button with a debug indicator
-                        if st.button("Execute Code and Show Results", key="execute_code_btn"):
+                if selected_algorithm is not None and selected_algorithm != "Select Algorithm":
+                    st.subheader(f"Python Solution using {selected_algorithm}")
+                    
+                    with st.spinner('Generating solution code... This may take a moment.'):
+                        try:
+                            solution = python_solution(my_data_problem, selected_algorithm, st.session_state.df_cleaned)
                             
-                            # Execute the code with our simplified function
-                            with st.spinner('Executing code... This may take a moment.'):
-                                output, error, figures, metrics = execute_python_code(solution, st.session_state.df_cleaned)
+                            # Display the code with syntax highlighting
+                            st.code(solution, language='python')
+                            
+                            # Add a download button
+                            st.download_button(
+                                label="Download Python Code",
+                                data=solution,
+                                file_name=f"{selected_algorithm.replace(' ', '_').lower()}_solution.py",
+                                mime="text/plain"
+                            )
+                            
+                            # Add execute button with a debug indicator
+                            if st.button("Execute Code and Show Results", key="execute_code_btn"):
+                                
+                                # Execute the code with our simplified function
+                                with st.spinner('Executing code... This may take a moment.'):
+                                    output, error, figures, metrics = execute_python_code(solution, st.session_state.df_cleaned)
 
+                                
+                                # Display the results
+                                display_execution_results(output, error, figures, metrics)
                             
-                            # Display the results
-                            display_execution_results(output, error, figures, metrics)
-                        
-                        # Add an explanation section
-                        with st.expander("Code Explanation"):
-                            explanation_prompt = f"Explain the following {selected_algorithm} code in simple terms:\n\n{solution[:1000]}..."
-                            explanation = llm.invoke(explanation_prompt).content
-                            st.write(explanation)
-                            
-                    except Exception as e:
-                        st.error(f"Error generating solution: {str(e)}")
-                        st.info("Try selecting a different algorithm or refreshing the page.")
+                            # Add an explanation section
+                            with st.expander("Code Explanation"):
+                                explanation_prompt = f"Explain the following {selected_algorithm} code in simple terms:\n\n{solution[:1000]}..."
+                                explanation = llm.invoke(explanation_prompt).content
+                                st.write(explanation)
+                                
+                        except Exception as e:
+                            st.error(f"Error generating solution: {str(e)}")
+                            st.info("Try selecting a different algorithm or refreshing the page.")
