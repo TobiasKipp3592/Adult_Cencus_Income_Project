@@ -1,4 +1,5 @@
 import os 
+from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,7 +16,7 @@ from langchain_experimental.agents.agent_toolkits import create_python_agent
 from langchain_experimental.tools.python.tool import PythonREPLTool 
 from langchain.agents.agent_types import AgentType
 from langchain_community.utilities import WikipediaAPIWrapper
-from streamlit_app.data_cleaning_app import fill_missing_values, rename_columns, clean_data
+from data_cleaning_app import fill_missing_values, rename_columns, clean_data
 from fpdf import FPDF
 import tempfile
 
@@ -256,103 +257,210 @@ if st.session_state.clicked[1]:
             st.write("### Data after Cleaning")
             st.write(st.session_state.df_cleaned.head())
             st.write(st.session_state.df_cleaned.tail())
-        else:
-            st.write("Dataset has not been cleaned yet.")
 
         if st.session_state.cleaned:
             st.divider()
-            st.header("Descriptive Data Analysis")
+            st.header("📊 Descriptive Data Analysis")
+            st.write("""Descriptive data analysis involves summarizing and visualizing the main features of a dataset. 
+                     It helps in understanding the distribution, central tendency, and variability of the data. 
+                     By examining these characteristics, we can uncover patterns, trends, and potential anomalies that inform further analysis and decision-making.""")
 
-        # questions = [
-        #     "How is income (≤50K / >50K) distributed in the general population, and what patterns or anomalies can be identified?",
-        #     "How does the probability of earning more than 50K change with increasing age?",
-        #     "Are there significant income differences between men and women?",
-        #     "How does income distribution (≤50K / >50K) differ among various ethnic groups?",
-        #     "Is there a relationship between a person's country of origin and their income class (≤50K / >50K)?"
-        # ]
+            questions = [
+                "How is income (≤50K / >50K) distributed in the general population, and what patterns or anomalies can be identified?",
+                "How does the probability of earning more than 50K change with increasing age?",
+                "Are there significant income differences in gender between men and women?",
+                "How does income distribution (≤50K / >50K) differ among various ethnic groups?",
+                "Is there a relationship between a person's country of origin and their income class (≤50K / >50K)?"
+            ]
 
-        # if "remaining_questions" not in st.session_state:
-        #     st.session_state.remaining_questions = questions.copy()
-        #     st.session_state.completed_analyses = []
+            if "selected_questions" not in st.session_state:
+                st.session_state.selected_questions = []
+            if "current_question_index" not in st.session_state:
+                st.session_state.current_question_index = 0
+            if "completed_analyses" not in st.session_state:
+                st.session_state.completed_analyses = []
 
-        # if "df_cleaned" not in st.session_state or st.session_state.df_cleaned is None:
-        #     st.error("No dataset uploaded. Please upload a dataset before proceeding.")
-        # else:
-        #     if st.session_state.remaining_questions:
-        #         selected_question = st.session_state.remaining_questions[0]
-        #         agent = create_pandas_dataframe_agent(llm, st.session_state.df_cleaned, verbose=True, allow_dangerous_code=True)
-        #         response = agent.run(selected_question)
-        #         st.subheader("Analysis Result:")
-        #         st.write(response)
+            st.write("Select the questions you want to analyze:")
+            selected_questions = []
+            for i, question in enumerate(questions):
+                if st.checkbox(question, key=f"q_{i}"):
+                    selected_questions.append((i, question))
+
+            if st.button("Start Analysis"):
+                if not selected_questions:
+                    st.warning("Please select at least one question before starting the analysis.")
+                else:
+                    st.session_state.selected_questions = selected_questions
+                    st.session_state.current_question_index = 0
+                    st.session_state.completed_analyses = []
+                    st.rerun()
+
+            @st.cache_data
+            def data_analysis(question_index, question, df_cleaned, _llm):
+                agent = create_pandas_dataframe_agent(llm, df_cleaned, verbose=True, allow_dangerous_code=True)
+                response = agent.run(question)
                 
-        #         fig, ax = plt.subplots()
-        #         if "income" in selected_question:
-        #             st.session_state.df_cleaned['income'] = st.session_state.df_cleaned['income'].astype(str)
-        #             df_grouped = st.session_state.df_cleaned.groupby(['income']).size()
-        #             df_grouped.plot(kind='bar', ax=ax)
-        #             ax.set_title("Income Distribution")
-        #             ax.set_ylabel("Count")
-        #             ax.set_xlabel("Income Category")
+                fig, ax = plt.subplots()
+                plt.style.use("dark_background")
+                colors = ["silver", "teal"]
+
+                if question_index == 0:
+                    df_cleaned['income'] = df_cleaned['income'].astype(str)
+                    df_grouped = df_cleaned.groupby(['income']).size()
+                    df_grouped.plot(kind='bar', ax=ax, color=colors)
+                    ax.set_title("Income Distribution")
+                    ax.set_ylabel("Count")
+                    ax.set_xlabel("Income Category")
+
+                elif question_index == 1:
+                    df_grouped = df_cleaned.groupby(['age', 'income']).size().unstack()
+                    df_grouped.plot(kind='line', ax=ax, color=colors)
+                    ax.set_title("Income Distribution by Age")
+                    ax.set_ylabel("Count")
+                    ax.set_xlabel("Age")
+
+                elif question_index == 2:
+                    df_grouped = df_cleaned.groupby(['sex', 'income']).size().unstack()
+                    df_grouped.plot(kind='bar', stacked=True, ax=ax, color=colors)
+                    ax.set_title("Income Distribution by Gender")
+                    ax.set_ylabel("Count")
+                    ax.set_xlabel("Gender")
+
+                elif question_index == 3:
+                    df_grouped = df_cleaned.groupby(['race', 'income']).size().unstack()
+                    df_grouped.plot(kind='bar', stacked=True, ax=ax, color=colors)
+                    ax.set_title("Income Distribution by Ethnic Group")
+                    ax.set_ylabel("Count")
+                    ax.set_xlabel("Ethnic Group")
+
+                elif question_index == 4:
+                    df_grouped = df_cleaned.groupby(['native_country', 'income']).size().unstack()
+
+                    top_countries = df_cleaned['native_country'].value_counts().nlargest(10).index
+                    df_grouped = df_grouped.loc[top_countries]
+
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    df_grouped.plot(kind='barh', stacked=True, ax=ax, color=["gray", "teal"])
+                    ax.set_title("Top 10 Income Distribution by Country of Origin")
+                    ax.set_ylabel("Country of Origin")
+                    ax.set_xlabel("Count")
+                    ax.legend(title="Income", labels=["<=50K", ">50K"])
+
+                return response, fig
+
+            if "df_cleaned" in st.session_state and st.session_state.df_cleaned is not None:
+                for prev_question, prev_response, prev_fig in st.session_state.completed_analyses:
+                    st.subheader(f"📊 {prev_question}") 
+                    st.write(prev_response)
+                    st.pyplot(prev_fig)
+
+                if st.session_state.selected_questions:
+                    index = st.session_state.current_question_index
+                    if index < len(st.session_state.selected_questions):
+                        question_index, question = st.session_state.selected_questions[index]
+
+                        if not any(q == question for q, _, _ in st.session_state.completed_analyses):
+                            st.subheader(f"📊 {question}")
+                            response, fig = data_analysis(question_index, question, st.session_state.df_cleaned, llm)
+
+                            st.session_state.completed_analyses.append((question, response, fig))
+                            st.rerun()
+
+                        if st.button("Continue with next question"):
+                            st.session_state.current_question_index += 1
+                            st.rerun()
+                    else:
+                        st.success("All selected questions have been analyzed!")
+
+            class CustomPDF(FPDF):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.font_path = r"C:\Users\tobia\PortfolioProject\fonts\DejaVuSans.ttf"
+                    self.add_font("DejaVu", "", self.font_path, uni=True)
+                    self.set_font("DejaVu", "", 12)
+
+                def header(self):
+                    if self.page > 1:
+                        self.set_font("DejaVu", "", 10)
+                        self.cell(0, 10, f"Data Analysis Report", align="C", border=1)
+                        self.ln(15)
+
+                def footer(self):
+                    if self.page > 1:
+                        self.set_y(-15)
+                        self.set_font("DejaVu", "", 10)
+                        self.cell(0, 10, f"Page {self.page-1}", align="R")
+
+            def create_professional_report(completed_analyses):
+                pdf = CustomPDF()
+                pdf.set_auto_page_break(auto=True, margin=15)
+
+                pdf.add_page()
+                pdf.set_font("DejaVu", "", 24)
+                pdf.cell(0, 20, "Data Analysis Report", ln=True, align='C')
+       
+                logo_path = r"C:\Users\tobia\PortfolioProject\assets\3515462.jpg"
+                if os.path.exists(logo_path):
+                    pdf.image(logo_path, x=50, y=80, w=100)
+
+                pdf.ln(170)
+                pdf.set_font("DejaVu", "", 16)
+                pdf.cell(0, 10, "Adult Income Dataset", ln=True, align='C')
                 
-        #         elif "age" in selected_question:
-        #             df_grouped = st.session_state.df_cleaned.groupby(['age', 'income']).size().unstack()
-        #             df_grouped.plot(kind='line', ax=ax)
-        #             ax.set_title("Income Distribution by Age")
-        #             ax.set_ylabel("Count")
-        #             ax.set_xlabel("Age")
-                
-        #         elif "gender" in selected_question:
-        #             df_grouped = st.session_state.df_cleaned.groupby(['sex', 'income']).size().unstack()
-        #             df_grouped.plot(kind='bar', stacked=True, ax=ax)
-        #             ax.set_title("Income Distribution by Gender")
-        #             ax.set_ylabel("Count")
-        #             ax.set_xlabel("Gender")
-                
-        #         elif "ethnic" in selected_question:
-        #             df_grouped = st.session_state.df_cleaned.groupby(['race', 'income']).size().unstack()
-        #             df_grouped.plot(kind='bar', stacked=True, ax=ax)
-        #             ax.set_title("Income Distribution by Ethnic Group")
-        #             ax.set_ylabel("Count")
-        #             ax.set_xlabel("Ethnic Group")
-                
-        #         elif "country of origin" in selected_question:
-        #             df_grouped = st.session_state.df_cleaned.groupby(['native-country', 'income']).size().unstack()
-        #             df_grouped.plot(kind='barh', stacked=True, ax=ax)
-        #             ax.set_title("Income Distribution by Country of Origin")
-        #             ax.set_ylabel("Country of Origin")
-        #             ax.set_xlabel("Count")
-                
-        #         st.pyplot(fig)
-        #         st.session_state.completed_analyses.append((selected_question, response, fig))
-                
-        #         if st.button("Continue with another question"):
-        #             st.session_state.remaining_questions.pop(0)
-        #             st.rerun()
-                
-        #         if not st.session_state.remaining_questions:
-        #             st.success("All questions have been analyzed!")
+                pdf.ln(20)
+                pdf.set_font("DejaVu", "", 12)
+                pdf.cell(0, 10, f"Generated on: {datetime.now().strftime('%d.%m.%Y at %H:%M Uhr')}", ln=True, align='C')
+                pdf.cell(0, 10, f"Author: Tobias Kipp", ln=True, align='C')
+
+                section_titles = [
+                    "Income Distribution",
+                    "Income Distribution by Age", 
+                    "Income Distribution by Gender",
+                    "Income Distribution by Ethnic Group",
+                    "Top 10 Income Distribution by Country of Origin"
+                ]
+
+                for idx, (question, analysis, fig) in enumerate(completed_analyses):
+                    pdf.add_page()
                     
-        #             if st.button("Save results as PDF"):
-        #                 pdf = FPDF()
-        #                 pdf.set_auto_page_break(auto=True, margin=15)
-        #                 pdf.add_page()
-        #                 pdf.set_font("Arial", size=12)
-        #                 pdf.cell(200, 10, "Analysis Report", ln=True, align='C')
-                        
-        #                 for idx, (question, analysis, fig) in enumerate(st.session_state.completed_analyses):
-        #                     pdf.add_page()
-        #                     pdf.cell(0, 10, f"{idx+1}. {question}", ln=True)
-        #                     pdf.multi_cell(0, 10, analysis)
-                            
-        #                     image_path = f"temp_chart_{idx}.png"
-        #                     fig.savefig(image_path)
-        #                     pdf.image(image_path, x=10, y=pdf.get_y() + 10, w=180)
-        #                     os.remove(image_path)
-                        
-        #                 pdf_output_path = "analysis_report.pdf"
-        #                 pdf.output(pdf_output_path)
-        #                 with open(pdf_output_path, "rb") as pdf_file:
-        #                     st.download_button(label="Download PDF Report", data=pdf_file, file_name="analysis_report.pdf", mime="application/pdf")
+                    pdf.set_font("DejaVu", "", 16)
+                    pdf.set_x(10)
+                    pdf.cell(0, 10, section_titles[idx], ln=True, align='L', border="B")
+                    pdf.ln(2)
+                    
+                    pdf.set_font("DejaVu", "", 12)
+                    pdf.set_x(10)
+                    pdf.multi_cell(0, 10, f"Analytics questions: {question}")
+                    pdf.ln(5)
+                    
+                    pdf.set_font("DejaVu", "", 11)
+                    pdf.multi_cell(0, 7, analysis)
+                    pdf.ln(10)
+                    
+                    image_path = f"temp_chart_{idx}.png"
+                    fig.savefig(image_path)
+                    pdf.image(image_path, x=10, y=pdf.get_y() + 10, w=180)
+                    os.remove(image_path)
+
+                pdf_bytes = pdf.output(dest="S").encode("latin1")
+                return io.BytesIO(pdf_bytes)
+
+            if st.button("Generate PDF-Report"):
+                if not hasattr(st.session_state, 'completed_analyses') or not st.session_state.completed_analyses:
+                    st.error("Bitte führen Sie zunächst Analysen durch.")
+                    st.stop()
+
+                pdf_buffer = create_professional_report(st.session_state.completed_analyses)
+                
+                st.success("✅ PDF-Report has been successfully generated!")
+
+                st.download_button(
+                    label="📥 Download PDF-Report",
+                    data=pdf_buffer,
+                    file_name="data_analytics_report.pdf",
+                    mime="application/pdf"
+                )
+
         if st.session_state.cleaned:
             st.divider()
             st.header("Data Science Problem")
