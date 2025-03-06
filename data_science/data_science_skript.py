@@ -18,7 +18,7 @@ def preprocess_data(df):
 
 
 
-def generate_plots(df, heatmap_file="data_science\heatmap.png", pairplot_file="data_science\pairplot.png"):
+def generate_plots(df, heatmap_file="files\heatmap.png", pairplot_file="files\pairplot.png"):
     """
     Generates a heatmap and a pairplot from a DataFrame and saves them as images.
     If the files already exist, they are loaded instead of being recreated and displayed.
